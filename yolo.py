@@ -2,28 +2,29 @@ import colorsys
 import copy
 import os
 from timeit import default_timer as timer
-
 import numpy as np
 from keras import backend as K
 from keras.layers import Input
 from keras.models import load_model
 from PIL import Image, ImageDraw, ImageFont
-
 from nets.yolo4 import yolo_body, yolo_eval
 from utils.utils import letterbox_image
-
+import time
+import cv2
 
 #--------------------------------------------#
 #   使用自己训练好的模型预测需要修改2个参数
 #   model_path和classes_path都需要修改！
 #   如果出现shape不匹配，一定要注意
 #   训练时的model_path和classes_path参数的修改
-#--------------------------------------------#
+#--------------------------------------------
+
 class YOLO(object):
     _defaults = {
-        "model_path"        : 'model_data/yolo4_weight.h5',
+        #"model_path"        : 'model_data/yolo4_weight.h5',
+        "model_path": 'logs/trained_weights_stage_1.h5',
         "anchors_path"      : 'model_data/yolo_anchors.txt',
-        "classes_path"      : 'model_data/coco_classes.txt',
+        "classes_path"      : 'model_data/new_classes.txt',
         "score"             : 0.5,
         "iou"               : 0.3,
         "max_boxes"         : 100,
@@ -48,6 +49,9 @@ class YOLO(object):
         self.anchors = self._get_anchors()
         self.sess = K.get_session()
         self.boxes, self.scores, self.classes = self.generate()
+        #   调用摄像头
+        self.capture = cv2.VideoCapture("./img/Video_20210125172917593.avi")
+    # -------------------------------------#
 
     #---------------------------------------------------#
     #   获得所有的分类
@@ -125,81 +129,144 @@ class YOLO(object):
     #---------------------------------------------------#
     #   检测图片
     #---------------------------------------------------#
-    def detect_image(self, image):
-        start = timer()
-        #---------------------------------------------------------#
-        #   给图像增加灰条，实现不失真的resize
-        #---------------------------------------------------------#
-        new_image_size = (self.model_image_size[1],self.model_image_size[0])
-        boxed_image = letterbox_image(image, new_image_size)
-        image_data = np.array(boxed_image, dtype='float32')
-        image_data /= 255.
-        #---------------------------------------------------------#
-        #   添加上batch_size维度
-        #---------------------------------------------------------#
-        image_data = np.expand_dims(image_data, 0)
 
-        #---------------------------------------------------------#
-        #   将图像输入网络当中进行预测！
-        #---------------------------------------------------------#
-        out_boxes, out_scores, out_classes = self.sess.run(
-            [self.boxes, self.scores, self.classes],
-            feed_dict={
-                self.yolo_model.input: image_data,
-                self.input_image_shape: [image.size[1], image.size[0]],
-                K.learning_phase(): 0})
+    def detect_image(self):
+        cv2.namedWindow("video", 0)
+        cv2.resizeWindow("video", 1000, 1000)
+        threshold=50000
+        pre_boxes = []
+        current_boxes = []  # record the boxes
+        while(True):
+            # 读取某一帧
+            ref, frame = self.capture.read()
+            #resize the imagsize
+            #   frame=cv2.resize(frame,(0,0),fx=0.2,fy=0.2,interpolation=cv2.INTER_NEAREST)
+            # 格式转变，BGRtoRGB
+            start = timer()
+            frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+            # 转变成Image
+            frame = Image.fromarray(np.uint8(frame))
+            #---------------------------------------------------------#
+            #   给图像增加灰条，实现不失真的resize
+            #---------------------------------------------------------#
+            new_image_size = (self.model_image_size[1],self.model_image_size[0])
+            boxed_image = letterbox_image(frame, new_image_size)
+            image_data = np.array(boxed_image, dtype='float32')
+            image_data /= 255.
+            #---------------------------------------------------------#
+            #   添加上batch_size维度
+            #---------------------------------------------------------#
+            image_data = np.expand_dims(image_data, 0)
+            #---------------------------------------------------------#
+            #   将图像输入网络当中进行预测！
+            #---------------------------------------------------------#
+            time1 = timer()
+            out_boxes, out_scores, out_classes = self.sess.run(
+                [self.boxes, self.scores, self.classes],
+                feed_dict={
+                    self.yolo_model.input: image_data,
+                    self.input_image_shape: [frame.size[1], frame.size[0]],
+                    K.learning_phase(): 0})
+            # ---------------------------------------------------------#
+            time2 = timer()
+            print("just eval without draw picture:", time2 - time1)
 
-        print('Found {} boxes for {}'.format(len(out_boxes), 'img'))
+            len_box_boxes=len(out_boxes)
+            print('Found {} boxes for {}'.format(len_box_boxes, 'img'))
 
-        #---------------------------------------------------------#
-        #   设置字体
-        #---------------------------------------------------------#
-        font = ImageFont.truetype(font='font/simhei.ttf',
-                    size=np.floor(3e-2 * image.size[1] + 0.5).astype('int32'))
-
-        thickness = max((image.size[0] + image.size[1]) // 300, 1)
-
-        for i, c in list(enumerate(out_classes)):
-            predicted_class = self.class_names[c]
-            box = out_boxes[i]
-            score = out_scores[i]
-
-            top, left, bottom, right = box
-            top = top - 5
-            left = left - 5
-            bottom = bottom + 5
-            right = right + 5
-
-            top = max(0, np.floor(top + 0.5).astype('int32'))
-            left = max(0, np.floor(left + 0.5).astype('int32'))
-            bottom = min(image.size[1], np.floor(bottom + 0.5).astype('int32'))
-            right = min(image.size[0], np.floor(right + 0.5).astype('int32'))
-
-            # 画框框
-            label = '{} {:.2f}'.format(predicted_class, score)
-            draw = ImageDraw.Draw(image)
-            label_size = draw.textsize(label, font)
-            label = label.encode('utf-8')
-            print(label, top, left, bottom, right)
-            
-            if top - label_size[1] >= 0:
-                text_origin = np.array([left, top - label_size[1]])
+            pre_boxes = current_boxes
+            if len_box_boxes==0:
+                current_boxes=[]
             else:
-                text_origin = np.array([left, top + 1])
+                out_boxes = np.array(out_boxes)# be array
+                out_boxes = out_boxes[np.argsort(out_boxes[:, 1])[::-1]]  # sort by xmin
+                x_c=(out_boxes[:,0]+out_boxes[:,2])/2
+                y_c=(out_boxes[:,1]+out_boxes[:,3])/2
+                current_boxes=out_boxes
+                current_boxes=np.c_[current_boxes,x_c,y_c]
+                current_boxes = np.insert(current_boxes, 6, values=0, axis=1)  # insert number label
+                number_label = np.arange(len_box_boxes)
+                current_boxes[:, 6] = number_label
+                len_pre_box=len(pre_boxes)
+                if len_pre_box==0:
+                    current_boxes[:, 6] = number_label
+                else:
+                    for i in range(len_box_boxes):
+                        found=False
+                        pre_max = np.max(pre_boxes[:, 6])
+                        for j in range(len_pre_box):
+                            distance=(current_boxes[i,4]-pre_boxes[j,4])**2+(current_boxes[i,5]-pre_boxes[j,5])**2 #distance
+                            print('distance: ',distance)
+                            if abs(distance)<threshold:
+                                current_boxes[i,6]=pre_boxes[j,6]
+                                print("pre: ,distance:  ",(j,distance))
+                                found=True
+                                break
+                        if not found:
+                            current_boxes[i,6]=pre_max+1
+            # ---------------------------------------------------------#
 
-            for i in range(thickness):
+            #---------------------------------------------------------#
+            #   设字体
+            #---------------------------------------------------------#
+            font = ImageFont.truetype(font='font/simhei.ttf',
+                        size=np.floor(3e-2 * frame.size[1] + 0.5).astype('int32'))
+            thickness = max((frame.size[0] + frame.size[1]) // 600, 1)
+
+            for i, c in list(enumerate(current_boxes)):
+                predicted_label = int(current_boxes[i,6])   #number label
+                box = current_boxes[i,:4]
+
+                top, left, bottom, right = box
+                top = top - 5
+                left = left - 5
+                bottom = bottom + 5
+                right = right + 5
+
+                top = max(0, np.floor(top + 0.5).astype('int32'))
+                left = max(0, np.floor(left + 0.5).astype('int32'))
+                bottom = min(frame.size[1], np.floor(bottom + 0.5).astype('int32'))
+                right = min(frame.size[0], np.floor(right + 0.5).astype('int32'))
+
+                # 画框框
+                label = '{}'.format(predicted_label)
+                draw = ImageDraw.Draw(frame)
+                label_size = draw.textsize(label, font)
+                label = label.encode('utf-8')
+
+               # print(label, top, left, bottom, right)
+
+                if top - label_size[1] >= 0:
+                    text_origin = np.array([left, top - label_size[1]])
+                else:
+                    text_origin = np.array([left, top + 1])
+
+                for i in range(thickness):
+                    draw.rectangle(
+                        [left + i, top + i, right - i, bottom - i],
+                        outline=self.colors[0])
                 draw.rectangle(
-                    [left + i, top + i, right - i, bottom - i],
-                    outline=self.colors[c])
-            draw.rectangle(
-                [tuple(text_origin), tuple(text_origin + label_size)],
-                fill=self.colors[c])
-            draw.text(text_origin, str(label,'UTF-8'), fill=(0, 0, 0), font=font)
-            del draw
+                    [tuple(text_origin), tuple(text_origin + label_size)],
+                    fill=self.colors[0])
+                draw.text(text_origin, str(label,'UTF-8'), fill=(0, 0, 0), font=font)
+                del draw
 
-        end = timer()
-        print(end - start)
-        return image
+            end = timer()
+
+            print(end - start)
+            frame = np.array(frame)
+            # RGBtoBGR满足opencv显示格式
+            frame = cv2.cvtColor(frame, cv2.COLOR_RGB2BGR)
+            cv2.imshow("video", frame)
+            c = cv2.waitKey(1) & 0xff
+        #   return frame
+            if c == 27:
+                self.capture.release()
+                break
 
     def close_session(self):
         self.sess.close()
+if __name__ == '__main__':
+    yolo=YOLO()
+    yolo.detect_image()
+    yolo.close_session()

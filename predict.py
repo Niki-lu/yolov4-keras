@@ -9,9 +9,10 @@ from keras.layers import Input
 from PIL import Image
 
 from nets.yolo4 import yolo_body
-from yolo import YOLO
+from yolo_orgin import YOLO
 
 yolo = YOLO()
+test_path="./img"
 
 while True:
     img = input('Input image filename:')

@@ -6,7 +6,7 @@ from keras import backend as K
 from PIL import Image
 
 from utils.utils import letterbox_image
-from yolo import YOLO
+from yolo_orgin import YOLO
 
 '''
 该FPS测试不包括前处理（归一化与resize部分）、绘图。

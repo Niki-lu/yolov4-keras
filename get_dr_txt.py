@@ -15,7 +15,7 @@ from tqdm import tqdm
 
 from nets.yolo4 import yolo_body, yolo_eval
 from utils.utils import letterbox_image
-from yolo import YOLO
+from yolo_orgin import YOLO
 
 
 class mAP_YOLO(YOLO):

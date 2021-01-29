@@ -6,8 +6,8 @@ import os
 import random 
 random.seed(0)
 
-xmlfilepath=r'./VOCdevkit/VOC2007/Annotations'
-saveBasePath=r"./VOCdevkit/VOC2007/ImageSets/Main/"
+xmlfilepath=r'./Annotations'
+saveBasePath=r"./ImageSets/Main/"
  
 #----------------------------------------------------------------------#
 #   想要增加测试集修改trainval_percent
@@ -19,6 +19,7 @@ train_percent=1
 temp_xml = os.listdir(xmlfilepath)
 total_xml = []
 for xml in temp_xml:
+    print(xml)
     if xml.endswith(".xml"):
         total_xml.append(xml)
 

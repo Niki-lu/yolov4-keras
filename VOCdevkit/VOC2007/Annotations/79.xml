@@ -1,0 +1,52 @@
+<?xml version="1.0" encoding="utf-8"?>
+<annotation>
+	<folder>VOC2007</folder>
+	<filename>79.jpg</filename>
+	<source>
+		<database>The VOC2007 Database</database>
+	</source>
+	<owner>
+		<name>AM</name>
+	</owner>
+	<segmented>0</segmented>
+	<size>
+		<width>3072</width>
+		<height>2048</height>
+	</size>
+	<object>
+		<pose>frontal</pose>
+		<truncated>0</truncated>
+		<difficult>0</difficult>
+		<name>wood</name>
+		<bndbox>
+			<xmin>186</xmin>
+			<ymin>1062</ymin>
+			<xmax>436</xmax>
+			<ymax>1304</ymax>
+		</bndbox>
+	</object>
+	<object>
+		<pose>frontal</pose>
+		<truncated>0</truncated>
+		<difficult>0</difficult>
+		<name>wood</name>
+		<bndbox>
+			<xmin>607</xmin>
+			<ymin>1001</ymin>
+			<xmax>860</xmax>
+			<ymax>1241</ymax>
+		</bndbox>
+	</object>
+	<object>
+		<pose>frontal</pose>
+		<truncated>0</truncated>
+		<difficult>0</difficult>
+		<name>wood</name>
+		<bndbox>
+			<xmin>1028</xmin>
+			<ymin>1114</ymin>
+			<xmax>1265</xmax>
+			<ymax>1362</ymax>
+		</bndbox>
+	</object>
+</annotation>
